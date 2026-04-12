@@ -321,14 +321,14 @@ function loadTheme() {
 // Show random destination and scroll to it
 function showRandomDestination() {
   if (!state.filteredDestinations.length) {
-    setFeedback("There are no destinations to pick from with the current filters.", true);
+    
     return;
   }
 
   const destination =
     state.filteredDestinations[Math.floor(Math.random() * state.filteredDestinations.length)];
 
-  setFeedback(`Try ${destination.name} in ${destination.region}. It matches your filters beautifully.`);
+  
 
   const cards = [...destinationsGrid.querySelectorAll(".destination-card")];
   const targetCard = cards.find(
