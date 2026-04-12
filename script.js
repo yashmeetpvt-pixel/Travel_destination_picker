@@ -1,7 +1,8 @@
 const REST_COUNTRIES_URL =
   "https://restcountries.com/v3.1/all?fields=name,capital,region,subregion,population,languages,flags,latlng,cca3";
-const UNSPLASH_ACCESS_KEY = "c_3ay96_113gTZeRhAIoqroMLgVbaJPfisUYLfiGkWE";
-const THEME_STORAGE_KEY = "travel-destination-picker:theme";
+
+const UNSPLASH_ACCESS_KEY = ""; // add if you want images
+const THEME_STORAGE_KEY = "travel-theme";
 
 const searchInput = document.getElementById("searchInput");
 const regionFilter = document.getElementById("regionFilter");
@@ -22,280 +23,220 @@ const state = {
   theme: loadTheme(),
 };
 
-const climateOverrides = {
-  ARE: "Arid",
-  AUS: "Arid",
-  BRA: "Tropical",
-  CAN: "Cold",
-  CHL: "Mediterranean",
-  EGY: "Arid",
-  ESP: "Mediterranean",
-  GRC: "Mediterranean",
-  IND: "Tropical",
-  ISL: "Cold",
-  ITA: "Mediterranean",
-  JPN: "Temperate",
-  KEN: "Tropical",
-  MAR: "Mediterranean",
-  MEX: "Temperate",
-  NOR: "Cold",
-  NZL: "Temperate",
-  SAU: "Arid",
-  THA: "Tropical",
-  USA: "Temperate",
-  ZAF: "Temperate",
-};
+
 
 initialize();
 
+/// ---------------- INIT ----------------
 // Initialize app: apply theme, attach events, fetch data
 async function initialize() {
   applyTheme(state.theme);
   attachEvents();
+
   try {
-    const destinations = await fetchDestinations();
-    state.destinations = destinations;
+    state.destinations = await fetchDestinations();
     applyFiltersAndRender();
-
-   
-  } catch (error) {
-    console.error(error);
-
-   
+  } catch (e) {
+    // Show error if API fails
+    setFeedback("Error loading data", true);
   }
 }
 
+// ---------------- EVENTS ----------------
 // Attach all event listeners (filters, buttons, theme toggle)
 function attachEvents() {
-  [searchInput, regionFilter, climateFilter, budgetFilter, sortSelect].forEach((control) => {
-    control.addEventListener("input", applyFiltersAndRender);
-    control.addEventListener("change", applyFiltersAndRender);
+  [searchInput, regionFilter, climateFilter, budgetFilter, sortSelect].forEach(el => {
+    el.addEventListener("input", applyFiltersAndRender);
+    el.addEventListener("change", applyFiltersAndRender);
   });
 
   randomBtn.addEventListener("click", showRandomDestination);
   themeToggle.addEventListener("click", toggleTheme);
 }
 
-// Fetch countries from API and prepare them
+// ---------------- FETCH ----------------
+// Fetch country data from REST Countries API
 async function fetchDestinations() {
-  const response = await fetch(REST_COUNTRIES_URL);
-  if (!response.ok) {
-    throw new Error(`REST Countries request failed with ${response.status}`);
-  }
-
-  const countries = await response.json();
+  const res = await fetch(REST_COUNTRIES_URL);
+  const data = await res.json();
 
   // Filter valid countries and enrich them
-  const destinations = countries
-    .filter((country) => country.region && country.name?.common)
-    .map((country) => enrichCountry(country))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  // Preload some images
-  await preloadImages(destinations.slice(0, 18));
-  return destinations;
+  return data
+    .filter(c => c.name && c.region)
+    .map(enrichCountry);
 }
 
-// Add computed fields (climate, affordability, etc.)
-function enrichCountry(country) {
-  const latitude = Array.isArray(country.latlng) ? country.latlng[0] : 0;
-  const languages = Object.values(country.languages || {});
-  const climate = climateOverrides[country.cca3] || inferClimate(latitude, country.subregion);
-  const affordability = inferAffordability(country.region, country.subregion, country.population);
+// ---------------- ENRICH ----------------
+// Convert raw API data into structured destination object
+function enrichCountry(c) {
+  const lat = c.latlng?.[0] || 0;
+  const language = Object.values(c.languages || {})[0] || "Unknown";
+
+  const climate = inferClimate(lat, c.subregion);
+  const affordability = inferAffordability(c.region, c.population);
 
   return {
-    id: country.cca3,
-    name: country.name.common,
-    capital: country.capital?.[0] || "Not listed",
-    region: country.region,
-    subregion: country.subregion || "Unknown",
-    population: country.population || 0,
+    id: c.cca3,
+    name: c.name.common,
+    capital: c.capital?.[0] || "N/A",
+    region: c.region,
+    subregion: c.subregion || "N/A",
+    population: c.population || 0,
     climate,
     affordability,
     affordabilityRank: affordabilityToRank(affordability),
-    language: languages[0] || "Local language",
-    image: buildFallbackImage(country),
-    description: createDescription(country, climate, affordability, languages[0]),
+    language,
+    image: buildFallbackImage(c),
+    description: createDescription(c, climate, affordability, language),
   };
 }
 
-// Infer climate using latitude and region
-function inferClimate(latitude, subregion = "") {
-  const absLat = Math.abs(latitude || 0);
+// ---------------- LOGIC ----------------
+// Determine climate based on latitude and region
+function inferClimate(lat = 0, subregion = "") {
+  const abs = Math.abs(lat);
 
-  if (/southern europe|western europe|southern africa/i.test(subregion)) return "Mediterranean";
-  if (/western asia|northern africa/i.test(subregion) || (absLat > 18 && absLat < 32)) return "Arid";
-  if (absLat < 16) return "Tropical";
-  if (absLat >= 50) return "Cold";
+  if (abs < 15) return "Tropical";
+  if (abs > 50) return "Cold";
+  if (/europe/i.test(subregion)) return "Mediterranean";
 
   return "Temperate";
 }
 
 // Estimate affordability category
-function inferAffordability(region, subregion = "", population = 0) {
-  if (/northern europe|australia and new zealand/i.test(subregion)) return "Premium";
-  if (/africa|southern asia|south-eastern asia/i.test(`${region} ${subregion}`)) return "Budget-friendly";
+function inferAffordability(region, population = 0) {
+  if (region === "Africa") return "Budget-friendly";
+  if (region === "Europe" || region === "North America") return "Premium";
   if (population > 100000000) return "Budget-friendly";
-  if (/north america|western europe|eastern asia/i.test(`${region} ${subregion}`)) return "Premium";
 
   return "Mid-range";
 }
 
-// Convert affordability label to numeric rank for sorting
+// Convert affordability label into numeric rank (for sorting)
 function affordabilityToRank(label) {
-  const ranks = {
+  return {
     "Budget-friendly": 1,
     "Mid-range": 2,
-    Premium: 3,
-  };
-
-  return ranks[label] || 2;
+    "Premium": 3,
+  }[label] || 2;
 }
 
-// Generate description text
-function createDescription(country, climate, affordability, language) {
-  return `${country.name.common} offers a ${climate.toLowerCase()} travel vibe in ${
-    country.subregion || country.region
-  }, with ${affordability.toLowerCase()} appeal and ${language || "local"} culture to explore.`;
+// Create a short description for UI
+function createDescription(c, climate, affordability, lang) {
+  return `${c.name.common} offers a ${climate.toLowerCase()} experience with ${affordability.toLowerCase()} travel and ${lang} culture.`;
 }
 
 // Provide fallback image (flag or placeholder)
-function buildFallbackImage(country) {
-  if (country.flags?.svg) return country.flags.svg;
-
-  return `https://placehold.co/800x600/e9ddcc/1e2b26?text=${encodeURIComponent(country.name.common)}`;
+function buildFallbackImage(c) {
+  return c.flags?.svg || "https://placehold.co/600x400";
 }
 
-// Preload images for initial destinations
-async function preloadImages(destinations) {
-  await Promise.all(
-    destinations.map(async (destination) => {
-      destination.image = await getDestinationImage(destination);
-    })
-  );
+// ---------------- IMAGES ----------------
+// Preload images for a list of destinations
+async function preloadImages(list) {
+  for (let d of list) {
+    d.image = await getDestinationImage(d);
+  }
 }
 
-// Fetch image from Unsplash or use cache/fallback
-async function getDestinationImage(destination) {
-  if (state.imageCache.has(destination.id)) {
-    return state.imageCache.get(destination.id);
-  }
+// Fetch image from Unsplash or return cached/fallback
+async function getDestinationImage(d) {
+  if (state.imageCache.has(d.id)) return state.imageCache.get(d.id);
 
-  if (!UNSPLASH_ACCESS_KEY) {
-    state.imageCache.set(destination.id, destination.image);
-    return destination.image;
-  }
-
-  const query = encodeURIComponent(`${destination.name} travel landscape`);
-  const url = `https://api.unsplash.com/search/photos?query=${query}&orientation=landscape&per_page=1&client_id=${UNSPLASH_ACCESS_KEY}`;
+  if (!UNSPLASH_ACCESS_KEY) return d.image;
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Unsplash request failed with ${response.status}`);
+    const res = await fetch(
+      `https://api.unsplash.com/search/photos?query=${d.name}&client_id=${UNSPLASH_ACCESS_KEY}`
+    );
+    const data = await res.json();
 
-    const data = await response.json();
-    const imageUrl = data.results?.[0]?.urls?.regular || destination.image;
-
-    state.imageCache.set(destination.id, imageUrl);
-    return imageUrl;
-  } catch (error) {
-    console.warn(`Image fallback used for ${destination.name}`, error);
-    state.imageCache.set(destination.id, destination.image);
-    return destination.image;
+    const url = data.results?.[0]?.urls?.regular || d.image;
+    state.imageCache.set(d.id, url);
+    return url;
+  } catch {
+    return d.image;
   }
 }
 
-// Apply filters + sorting and update UI
+// Replace image later with better one (lazy loading)
+async function lazilyEnhanceImage(d, img) {
+  img.src = await getDestinationImage(d);
+}
+
+// ---------------- FILTER ----------------
+// Apply all filters and sorting, then render
 function applyFiltersAndRender() {
-  const searchValue = searchInput.value.trim().toLowerCase();
-  const selectedRegion = regionFilter.value;
-  const selectedClimate = climateFilter.value;
-  const selectedBudget = budgetFilter.value;
-  const selectedSort = sortSelect.value;
+  const search = searchInput.value.toLowerCase();
+  const region = regionFilter.value;
+  const climate = climateFilter.value;
+  const budget = budgetFilter.value;
 
   state.filteredDestinations = state.destinations
-    .filter((destination) => destination.name.toLowerCase().includes(searchValue))
-    .filter((destination) => selectedRegion === "all" || destination.region === selectedRegion)
-    .filter((destination) => selectedClimate === "all" || destination.climate === selectedClimate)
-    .filter((destination) => selectedBudget === "all" || destination.affordability === selectedBudget)
-    .sort((a, b) => sortDestinations(a, b, selectedSort));
+    .filter(d => d.name.toLowerCase().includes(search))
+    .filter(d => region === "all" || d.region === region)
+    .filter(d => climate === "all" || d.climate === climate)
+    .filter(d => budget === "all" || d.affordability === budget)
+    .sort((a, b) => sortDestinations(a, b, sortSelect.value));
 
   renderDestinations(state.filteredDestinations);
   updateCounts();
 }
 
-// Sorting logic
+// ---------------- SORT ----------------
+// Sort destinations based on selected option
 function sortDestinations(a, b, mode) {
-  const sorters = {
-    "name-asc": () => a.name.localeCompare(b.name),
-    "population-desc": () => b.population - a.population,
-    "population-asc": () => a.population - b.population,
-    "affordability-asc": () =>
-      a.affordabilityRank - b.affordabilityRank || a.name.localeCompare(b.name),
-  };
-
-  return (sorters[mode] || sorters["name-asc"])();
+  switch (mode) {
+    case "population-desc":
+      return b.population - a.population;
+    case "population-asc":
+      return a.population - b.population;
+    case "affordability":
+      return a.affordabilityRank - b.affordabilityRank;
+    default:
+      return a.name.localeCompare(b.name);
+  }
 }
 
-// Render destination cards
-function renderDestinations(destinations) {
+// ---------------- RENDER ----------------
+// Render all destination cards
+function renderDestinations(list) {
   destinationsGrid.innerHTML = "";
 
-  if (!destinations.length) {
-    destinationsGrid.innerHTML =
-      '<div class="empty-state">No destinations match those filters yet. Try widening your search.</div>';
+  if (!list.length) {
+    destinationsGrid.innerHTML = "No results";
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  destinations.forEach((destination) => {
-    fragment.appendChild(buildCard(destination));
-  });
-
-  destinationsGrid.appendChild(fragment);
+  list.forEach(d => destinationsGrid.appendChild(buildCard(d)));
 }
 
 // Create a single destination card
-function buildCard(destination) {
+function buildCard(d) {
   const node = cardTemplate.content.firstElementChild.cloneNode(true);
-  const img = node.querySelector(".destination-image");
 
-  img.src = state.imageCache.get(destination.id) || destination.image;
-  img.alt = `${destination.name} travel view`;
+  // Fill text data
+  node.querySelector(".country-name").textContent = d.name;
+  node.querySelector(".country-region").textContent = `${d.region} • ${d.subregion}`;
+  node.querySelector(".country-climate").textContent = d.climate;
+  node.querySelector(".country-budget").textContent = d.affordability;
+  node.querySelector(".country-language").textContent = d.language;
+  node.querySelector(".country-capital").textContent = d.capital;
+  node.querySelector(".country-population").textContent = formatPopulation(d.population);
+  node.querySelector(".country-description").textContent = d.description;
+
+  // Handle image
+  const img = node.querySelector("img");
+  img.src = d.image;
 
   // Improve image after render
-  lazilyEnhanceImage(destination, img);
-
-  // Fill card data
-  node.querySelector(".country-name").textContent = destination.name;
-  node.querySelector(".country-region").textContent = `${destination.region} • ${destination.subregion}`;
-  node.querySelector(".country-climate").textContent = destination.climate;
-  node.querySelector(".country-description").textContent = destination.description;
-  node.querySelector(".country-budget").textContent = destination.affordability;
-  node.querySelector(".country-language").textContent = destination.language;
-  node.querySelector(".country-capital").textContent = destination.capital;
-  node.querySelector(".country-population").textContent = formatPopulation(destination.population);
+  lazilyEnhanceImage(d, img);
 
   return node;
 }
 
-// Load better image lazily
-async function lazilyEnhanceImage(destination, imageElement) {
-  if (
-    state.imageCache.has(destination.id) &&
-    state.imageCache.get(destination.id) !== destination.image
-  ) {
-    imageElement.src = state.imageCache.get(destination.id);
-    return;
-  }
-
-  if (!UNSPLASH_ACCESS_KEY) return;
-
-  const imageUrl = await getDestinationImage(destination);
-  imageElement.src = imageUrl;
-}
-
-// Toggle between dark and light theme
+// ---------------- THEME ----------------
+// Toggle between dark and light mode
 function toggleTheme() {
   state.theme = state.theme === "dark" ? "light" : "dark";
   applyTheme(state.theme);
@@ -305,50 +246,38 @@ function toggleTheme() {
 // Apply theme to document
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
-  themeToggle.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+  themeToggle.textContent = theme === "dark" ? "Light" : "Dark";
 }
 
-// Load theme from storage or system preference
+// Load theme from localStorage (default light)
 function loadTheme() {
-  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-  if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return localStorage.getItem(THEME_STORAGE_KEY) || "light";
 }
 
-// Show random destination and scroll to it
+// ---------------- RANDOM ----------------
+// Show a random destination
 function showRandomDestination() {
-  if (!state.filteredDestinations.length) {
-    
-    return;
-  }
+  if (!state.filteredDestinations.length) return;
 
-  const destination =
+  const d =
     state.filteredDestinations[Math.floor(Math.random() * state.filteredDestinations.length)];
 
-  
-
-  const cards = [...destinationsGrid.querySelectorAll(".destination-card")];
-  const targetCard = cards.find(
-    (card) => card.querySelector(".country-name")?.textContent === destination.name
-  );
-
-  if (targetCard) {
-    targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
+  alert(`Try visiting: ${d.name}`);
 }
 
-// Update results count
+// ---------------- UI ----------------
+// Update result count text
 function updateCounts() {
   resultsCount.textContent = `${state.filteredDestinations.length} destinations`;
 }
 
-// Display feedback message
-function setFeedback(message, isError = false) {
-  feedback.innerHTML = `<div class="feedback-card ${isError ? "error" : ""}">${message}</div>`;
+// Show feedback message
+function setFeedback(msg, isError = false) {
+  feedback.textContent = msg;
+  feedback.style.color = isError ? "red" : "black";
 }
 
 // Format population with commas
-function formatPopulation(value) {
-  return new Intl.NumberFormat("en-US").format(value);
+function formatPopulation(n) {
+  return n.toLocaleString();
 }
