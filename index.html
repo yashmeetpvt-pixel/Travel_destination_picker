@@ -35,8 +35,8 @@
             <p class="eyebrow">Personalized trip discovery</p>
             <h1>Find your next destination with live country data.</h1>
             <p class="hero-text">
-              Explore destinations by name, region, climate, and budget vibe. Save the ones
-              you love and let the app surprise you when you cannot decide.
+              Explore destinations by name, region, climate, and budget vibe, and let the app
+              surprise you when you cannot decide.
             </p>
           </div>
 
@@ -108,22 +108,11 @@
           </div>
           <div class="status-summary">
             <span id="resultsCount">0 destinations</span>
-            <span id="wishlistCount">0 saved</span>
           </div>
         </section>
 
         <section id="feedback" class="feedback" aria-live="polite"></section>
         <section id="destinationsGrid" class="card-grid" aria-live="polite"></section>
-
-        <section class="wishlist-section">
-          <div class="status-row">
-            <div>
-              <p class="section-label">Wishlist</p>
-              <h2>Saved destinations</h2>
-            </div>
-          </div>
-          <section id="wishlistGrid" class="wishlist-grid"></section>
-        </section>
       </main>
     </div>
 
@@ -131,7 +120,6 @@
       <article class="destination-card">
         <div class="image-wrap">
           <img class="destination-image" alt="" loading="lazy" />
-          <button class="wishlist-btn" type="button"></button>
         </div>
         <div class="card-body">
           <div class="card-heading">
@@ -163,4 +151,3 @@
     <script src="script.js"></script>
   </body>
 </html>
-
