@@ -1,58 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Trip Finder</title>
-  <link rel="stylesheet" href="style.css"/>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Travel Destination Picker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <nav class="topbar">
+          <span class="brand">Travel Destination Picker</span>
+          <div class="topbar-actions">
+            <button
+              id="themeToggle"
+              class="secondary-btn"
+              type="button"
+              aria-label="Toggle light and dark theme"
+            >
+              Dark mode
+            </button>
+            <button id="randomBtn" class="ghost-btn" type="button">Pick for me</button>
+          </div>
+        </nav>
 
-  <header>
-    <h1>Trip Finder</h1>
-    <p>Search and explore destinations around the world</p>
-  </header>
+        <div class="hero-content">
+          <div class="hero-copy">
+            <p class="eyebrow">Personalized trip discovery</p>
+            <h1>Find your next destination with live country data.</h1>
+            <p class="hero-text">
+              Explore destinations by name, region, climate, and budget vibe. Save the ones
+              you love and let the app surprise you when you cannot decide.
+            </p>
+          </div>
 
-  <section class="filters">
-    <input type="text" id="searchInput" placeholder="Search country or capital..."/>
+          <section class="control-panel" aria-label="Travel filters">
+            <div class="search-wrap">
+              <label for="searchInput">Search destination</label>
+              <input
+                id="searchInput"
+                type="search"
+                placeholder="Try Japan, Kenya, Brazil..."
+                autocomplete="off"
+              />
+            </div>
 
-    <select id="regionSelect">
-      <option value="">All Regions</option>
-      <option value="Africa">Africa</option>
-      <option value="Americas">Americas</option>
-      <option value="Asia">Asia</option>
-      <option value="Europe">Europe</option>
-      <option value="Oceania">Oceania</option>
-    </select>
+            <div class="control-grid">
+              <div>
+                <label for="regionFilter">Region</label>
+                <select id="regionFilter">
+                  <option value="all">All regions</option>
+                  <option value="Africa">Africa</option>
+                  <option value="Americas">Americas</option>
+                  <option value="Asia">Asia</option>
+                  <option value="Europe">Europe</option>
+                  <option value="Oceania">Oceania</option>
+                </select>
+              </div>
 
-    <select id="sortSelect">
-      <option value="name-asc">Name A–Z</option>
-      <option value="name-desc">Name Z–A</option>
-      <option value="pop-desc">Population (High–Low)</option>
-      <option value="pop-asc">Population (Low–High)</option>
-    </select>
+              <div>
+                <label for="climateFilter">Climate</label>
+                <select id="climateFilter">
+                  <option value="all">Any climate</option>
+                  <option value="Tropical">Tropical</option>
+                  <option value="Temperate">Temperate</option>
+                  <option value="Cold">Cold</option>
+                  <option value="Arid">Arid</option>
+                  <option value="Mediterranean">Mediterranean</option>
+                </select>
+              </div>
 
-    <button id="randomBtn">Random Destination</button>
-  </section>
+              <div>
+                <label for="budgetFilter">Budget</label>
+                <select id="budgetFilter">
+                  <option value="all">Any budget</option>
+                  <option value="Budget-friendly">Budget-friendly</option>
+                  <option value="Mid-range">Mid-range</option>
+                  <option value="Premium">Premium</option>
+                </select>
+              </div>
 
-  <div id="status"></div>
+              <div>
+                <label for="sortSelect">Sort by</label>
+                <select id="sortSelect">
+                  <option value="name-asc">Name A-Z</option>
+                  <option value="population-desc">Population high-low</option>
+                  <option value="population-asc">Population low-high</option>
+                  <option value="affordability-asc">More affordable first</option>
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+      </header>
 
-  <section id="cardGrid" class="card-grid"></section>
+      <main class="content">
+        <section class="status-row">
+          <div>
+            <p class="section-label">Explore</p>
+            <h2>Destination matches</h2>
+          </div>
+          <div class="status-summary">
+            <span id="resultsCount">0 destinations</span>
+            <span id="wishlistCount">0 saved</span>
+          </div>
+        </section>
 
-  <div id="wishlistBar" class="wishlist-bar hidden">
-    <span id="wishlistLabel">Wishlist (0)</span>
-    <button id="viewWishlist">View</button>
-    <button id="clearWishlist">Clear all</button>
-  </div>
+        <section id="feedback" class="feedback" aria-live="polite"></section>
+        <section id="destinationsGrid" class="card-grid" aria-live="polite"></section>
 
-  <div id="wishlistModal" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-top">
-        <h2>My Wishlist</h2>
-        <button id="closeModal">✕</button>
-      </div>
-      <ul id="wishlistItems"></ul>
+        <section class="wishlist-section">
+          <div class="status-row">
+            <div>
+              <p class="section-label">Wishlist</p>
+              <h2>Saved destinations</h2>
+            </div>
+          </div>
+          <section id="wishlistGrid" class="wishlist-grid"></section>
+        </section>
+      </main>
     </div>
-  </div>
 
-  <script src="script.js" defer></script>
+    <template id="destinationCardTemplate">
+      <article class="destination-card">
+        <div class="image-wrap">
+          <img class="destination-image" alt="" loading="lazy" />
+          <button class="wishlist-btn" type="button"></button>
+        </div>
+        <div class="card-body">
+          <div class="card-heading">
+            <div>
+              <h3 class="country-name"></h3>
+              <p class="country-region"></p>
+            </div>
+            <span class="country-climate tag"></span>
+          </div>
+          <p class="country-description"></p>
+          <div class="tag-row">
+            <span class="country-budget tag soft"></span>
+            <span class="country-language tag soft"></span>
+          </div>
+          <div class="stats">
+            <div>
+              <span class="stat-label">Capital</span>
+              <strong class="country-capital"></strong>
+            </div>
+            <div>
+              <span class="stat-label">Population</span>
+              <strong class="country-population"></strong>
+            </div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
+
