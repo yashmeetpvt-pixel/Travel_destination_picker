@@ -52,8 +52,6 @@ initialize();
 async function initialize() {
   applyTheme(state.theme);
   attachEvents();
-  setFeedback("Loading destinations...");
-
   try {
     const destinations = await fetchDestinations();
     state.destinations = destinations;
